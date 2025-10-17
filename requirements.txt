@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+sqlmodel
+jinja2
+python-multipart
+livekit-api
+python-dotenv
