@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Panel</h1>
+    <h2>Pending Requests</h2>
+    <ul>
+      <!-- Loop through pending requests -->
+      <li>
+        <p><strong>Customer:</strong> John Doe</p>
+        <p><strong>Question:</strong> What are your working hours?</p>
+        <form action="/admin/resolve" method="post">
+          <input type="hidden" name="ticket_id" value="12345">
+          <textarea name="answer" placeholder="Enter your answer here" required></textarea>
+          <button type="submit">Submit Answer</button>
+        </form>
+      </li>
+    </ul>
+  </div>
+</body>
+</html>
