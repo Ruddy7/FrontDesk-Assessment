@@ -1,0 +1,204 @@
+/* === Global === */
+ body {
+     font-family: "Inter", Arial, sans-serif;
+     background-color: #eef2f3;
+     margin: 0;
+     padding: 0;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     height: 100vh;
+}
+/* === Chat Container === */
+ .chat-container {
+     width: 100%;
+     max-width: 600px;
+     height: 85vh;
+     background-color: #fff;
+     display: flex;
+     flex-direction: column;
+     border-radius: 16px;
+     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+     overflow: hidden;
+}
+/* === Header === */
+ header {
+     background-color: #007bff;
+     color: white;
+     text-align: center;
+     padding: 16px;
+}
+ header h1 {
+     margin: 0;
+     font-size: 1.5rem;
+}
+ header p {
+     margin: 4px 0 0;
+     font-size: 0.9rem;
+     opacity: 0.9;
+}
+/* === Chat Box === */
+ #chat-box {
+     flex: 1;
+     padding: 16px;
+     overflow-y: auto;
+     display: flex;
+     flex-direction: column;
+     gap: 12px;
+     background-color: #f9fafb;
+}
+/* Scrollbar styling */
+ #chat-box::-webkit-scrollbar {
+     width: 8px;
+}
+ #chat-box::-webkit-scrollbar-thumb {
+     background-color: #ccc;
+     border-radius: 4px;
+}
+/* === Messages === */
+ .user-message, .bot-message {
+     max-width: 75%;
+     padding: 10px 14px;
+     border-radius: 16px;
+     font-size: 15px;
+     line-height: 1.4;
+     animation: fadeIn 0.3s ease;
+}
+ .user-message {
+     align-self: flex-end;
+     background-color: #007bff;
+     color: white;
+     border-bottom-right-radius: 4px;
+}
+ .bot-message {
+     align-self: flex-start;
+     background-color: #e9ecef;
+     color: #333;
+     border-bottom-left-radius: 4px;
+}
+/* === Form === */
+ form {
+     display: flex;
+     flex-direction: column;
+     padding: 16px;
+     border-top: 1px solid #ddd;
+     background-color: #fff;
+}
+ form input, form textarea {
+     margin-bottom: 10px;
+     padding: 10px;
+     border: 1px solid #ccc;
+     border-radius: 8px;
+     font-size: 15px;
+     resize: none;
+}
+ form button {
+     background-color: #007bff;
+     color: white;
+     font-size: 16px;
+     padding: 10px;
+     border: none;
+     border-radius: 8px;
+     cursor: pointer;
+     transition: background-color 0.2s ease;
+}
+ form button:hover {
+     background-color: #0056b3;
+}
+/* === Animations === */
+ @keyframes fadeIn {
+     from {
+         opacity: 0;
+         transform: translateY(5px);
+    }
+     to {
+         opacity: 1;
+         transform: translateY(0);
+    }
+}
+/* === Responsive === */
+ @media (max-width: 600px) {
+     .chat-container {
+         height: 90vh;
+         border-radius: 0;
+    }
+     form textarea {
+         height: 60px;
+    }
+}
+/* === Admin Panel === */
+ .admin-container {
+     width: 90%;
+     max-width: 900px;
+     margin: 30px auto;
+     background-color: #fff;
+     border-radius: 12px;
+     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+     padding-bottom: 20px;
+}
+ .requests-section {
+     margin: 20px;
+}
+ .requests-section h2 {
+     color: #007bff;
+     border-bottom: 2px solid #007bff;
+     padding-bottom: 5px;
+     margin-bottom: 10px;
+}
+ .requests-list {
+     display: grid;
+     gap: 15px;
+}
+ .request-card {
+     background-color: #f9fafb;
+     border-radius: 8px;
+     padding: 15px;
+     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+ .request-card.resolved {
+     border-left: 4px solid #28a745;
+     background-color: #eef9f0;
+}
+ .request-card form {
+     margin-top: 10px;
+}
+ .request-card textarea {
+     width: 100%;
+     border-radius: 6px;
+     border: 1px solid #ccc;
+     padding: 10px;
+     margin-bottom: 8px;
+}
+ .request-card button {
+     background-color: #007bff;
+     color: white;
+     border: none;
+     padding: 8px 14px;
+     border-radius: 6px;
+     cursor: pointer;
+}
+ .request-card button:hover {
+     background-color: #0056b3;
+}
+ .empty-text {
+     color: #777;
+     font-style: italic;
+     margin: 10px 0;
+     text-align: center;
+}
+
+.join-btn {
+  display: inline-block;
+  background-color: #28a745;
+  color: white;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  margin-top: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.join-btn:hover {
+  background-color: #218838;
+}

@@ -1,0 +1,16 @@
+<!DOCTYPE html> 
+<html lang="en">
+   <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Salon Help Desk</title>
+      <link rel="stylesheet" href="/static/style.css">
+   </head>
+   <body>
+      <div class="container">
+         <h1>Welcome to Our Salon</h1>
+         <p>Ask your question below:</p>
+         <form action="/call" method="post"> <label for="caller">Your Name:</label> <input type="text" id="caller" name="caller" required> <label for="question">Your Question:</label> <textarea id="question" name="question" required></textarea> <button type="submit">Submit</button> </form>
+      </div>
+   </body>
+</html>

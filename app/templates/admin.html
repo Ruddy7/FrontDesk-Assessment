@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supervisor Panel</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="admin-container">
+    <h1>Supervisor Dashboard</h1>
+
+    <section>
+      <h2>Pending Requests</h2>
+      {% if pending_requests %}
+        {% for req in pending_requests %}
+        <div class="request-card">
+          <p><strong>Caller:</strong> {{ req.caller }}</p>
+          <p><strong>Question:</strong> {{ req.question }}</p>
+
+          {% if req.room_url %}
+            <a href="{{ req.room_url }}" target="_blank" class="join-btn">🎥 Join Live Support</a>
+          {% else %}
+            <p><em>Creating LiveKit room...</em></p>
+          {% endif %}
+
+          <form action="/admin/resolve" method="post">
+            <input type="hidden" name="ticket_id" value="{{ req.ticket_id }}" />
+            <textarea name="answer" placeholder="Type answer..." required></textarea>
+            <button type="submit">Resolve</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p>No pending requests 🎉</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Resolved</h2>
+      {% if resolved_requests %}
+        {% for req in resolved_requests %}
+        <div class="request-card resolved">
+          <p><strong>{{ req.caller }}</strong> — {{ req.question }}</p>
+          <p><em>{{ req.supervisor_answer }}</em></p>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p>No resolved tickets yet.</p>
+      {% endif %}
+    </section>
+  </div>
+</body>
+</html>
