@@ -15,3 +15,5 @@ The command to install the required packages is **pip install -r requirements.tx
 
 Lastly, you just need to type **deactivate** in your terminal to deactivate the Virtual environment and start using your global environment again. <br>
 However, to use this virtual environment again, you need to type the same command in your terminal which is **.\venv\Scripts\activate**
+
+Finally, to start the application, **uvicorn app.main:app --reload**
