@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
-
 DATABASE_URL = "sqlite:///./human_in_loop.db"
 engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
 
@@ -24,6 +23,7 @@ class HelpRequest(SQLModel, table=True):
     state: str = Field(default="PENDING")
     supervisor_answer: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    room_url: Optional[str] = None  # ✅ new field for LiveKit link
 
 
 SQLModel.metadata.create_all(engine)
