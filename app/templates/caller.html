@@ -39,9 +39,9 @@
   </div>
 
   <script>
-    const { Room, RoomEvent } = window.LivekitClient;
+    const { Room, RoomEvent, createLocalAudioTrack } = window.LivekitClient;
     let roomClient;
-    let localTracks = [];
+    let localAudioTrack;
     let muted = false;
 
     async function joinCall(ticketId, role = "caller") {
@@ -103,26 +103,6 @@
           }
         });
 
-        // Connect to room
-        console.log("Connecting to room...");
-        statusEl.innerText = "Connecting to room...";
-        await roomClient.connect(data.url, data.token);
-        console.log("Connected! Publishing audio...");
-
-        // Request mic permission and publish
-        statusEl.innerText = "Requesting microphone...";
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Microphone access granted");
-
-        // Publish local audio track
-        statusEl.innerText = "Publishing audio...";
-        const audioTrack = await roomClient.createLocalAudioTrack({
-          source: stream.getAudioTracks()[0]
-        });
-        await roomClient.localParticipant.publishTrack(audioTrack);
-        localTracks.push(audioTrack);
-        console.log("Audio track published");
-
         // Subscribe to remote audio
         roomClient.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           console.log("Remote track subscribed:", participant.identity);
@@ -134,6 +114,32 @@
             statusEl.style.color = "green";
           }
         });
+
+        // Connect to room
+        console.log("Connecting to room...");
+        statusEl.innerText = "Connecting to room...";
+        await roomClient.connect(data.url, data.token);
+        console.log("Connected! Publishing audio...");
+
+        // Request mic permission and create audio track
+        statusEl.innerText = "Requesting microphone...";
+        console.log("Creating local audio track...");
+        
+        // Create local audio track using LiveKit's function
+        localAudioTrack = await createLocalAudioTrack();
+        console.log("Local audio track created:", localAudioTrack);
+
+        // Publish the track
+        statusEl.innerText = "Publishing audio...";
+        await roomClient.localParticipant.publishTrack(localAudioTrack);
+        console.log("Audio track published");
+
+        // Debug: Monitor audio levels
+        setInterval(() => {
+          if (localAudioTrack) {
+            console.log("🎤 Mic active:", !localAudioTrack.isMuted);
+          }
+        }, 3000);
 
         statusEl.innerText = "✅ Connected - Waiting for supervisor...";
         statusEl.style.color = "green";
@@ -151,12 +157,10 @@
     }
 
     function toggleMute(btn) {
+      if (!localAudioTrack) return;
+      
       muted = !muted;
-      localTracks.forEach(track => {
-        if (track.mediaStreamTrack) {
-          track.mediaStreamTrack.enabled = !muted;
-        }
-      });
+      localAudioTrack.muted = muted;
       btn.innerText = muted ? "🔈 Unmute" : "🔇 Mute";
       console.log("Mute toggled:", muted);
     }
