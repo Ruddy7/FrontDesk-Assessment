@@ -57,23 +57,40 @@ def generate_access_token(identity: str, room_name: str, role: str = "caller") -
     """
     Generate a LiveKit join token (JWT) for a participant identity and room.
     Tested with livekit==1.0.17
+    Uses method chaining with with_grants()
     """
-    token = AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-    token.identity = identity
-    token.name = f"{role}_{identity}"
-    token.metadata = json.dumps({"role": role})
-    
-    # IMPORTANT: For livekit 1.0.17, use video_grant (singular), not grants
-    token.video_grant = VideoGrants(
+    grants = VideoGrants(
         room_join=True,
         room=room_name,
         can_publish=True,
         can_subscribe=True,
         can_publish_data=True
     )
+    
+    token = (
+        AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+        .with_identity(identity)
+        .with_name(f"{role}_{identity}")
+        .with_grants(grants)
+        .with_metadata(json.dumps({"role": role}))
+    )
 
     jwt_token = token.to_jwt()
-    print(f"[TOKEN] Generated for identity={identity}, room={room_name}, length={len(jwt_token)}")
+    
+    # Debug: decode and verify
+    import jwt as pyjwt
+    try:
+        decoded = pyjwt.decode(jwt_token, options={"verify_signature": False})
+        has_video = "video" in decoded
+        print(f"[TOKEN] Generated for identity={identity}, room={room_name}")
+        print(f"[TOKEN] Length={len(jwt_token)}, Has video grants={has_video}")
+        if has_video:
+            print(f"[TOKEN] Video grants: {decoded['video']}")
+        else:
+            print("[TOKEN] WARNING: No video grants in token!")
+    except Exception as e:
+        print(f"[TOKEN] Debug decode failed: {e}")
+    
     return jwt_token
 
 
@@ -96,9 +113,6 @@ def create_help_request(caller: str, question: str) -> HelpRequest:
         session.refresh(hr)
 
     notify_supervisor(hr)
-
-    # Spawn a task to create the LiveKit room (non-blocking)
-    asyncio.create_task(spawn_room_for_ticket(hr.ticket_id))
     return hr
 
 
