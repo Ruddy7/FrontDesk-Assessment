@@ -187,18 +187,28 @@
      text-align: center;
 }
 
+/* LiveKit Buttons */
 .join-btn {
-  display: inline-block;
-  background-color: #28a745;
-  color: white;
-  text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-weight: 500;
-  margin-top: 8px;
-  transition: background-color 0.2s ease;
+display: inline-block;
+background-color: #28a745;
+color: white;
+text-decoration: none;
+padding: 8px 12px;
+border-radius: 6px;
+font-weight: 500;
+margin-top: 8px;
+transition: background-color 0.2s ease;
+cursor: pointer;
+border: none;
 }
 
+
 .join-btn:hover {
-  background-color: #218838;
+background-color: #218838;
+}
+
+
+button:disabled {
+opacity: 0.6;
+cursor: not-allowed;
 }
