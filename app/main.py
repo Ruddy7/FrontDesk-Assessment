@@ -40,12 +40,31 @@ async def caller_form(request: Request):
 # --- Call submission ---
 @app.post("/call", response_class=HTMLResponse)
 async def receive_call(request: Request, caller: str = Form(...), question: str = Form(...)):
+    from .agent import create_livekit_room
+    
     entry = find_in_kb(question)
 
     if entry:
         return HTMLResponse(f"<div>AI Reply: {entry.answer}</div>")
     else:
         hr = create_help_request(caller, question)
+        
+        # Create the LiveKit room immediately
+        room_name = f"support-{hr.ticket_id}"
+        try:
+            created_room = await create_livekit_room(room_name)
+            
+            # Update the ticket with room info
+            with Session(engine) as session:
+                db_hr = session.exec(
+                    select(HelpRequest).where(HelpRequest.ticket_id == hr.ticket_id)
+                ).first()
+                if db_hr:
+                    db_hr.room_url = created_room
+                    session.add(db_hr)
+                    session.commit()
+        except Exception as e:
+            print(f"[ERROR] Failed to create room: {e}")
 
         # Return caller page with ticket ID so frontend can join voice
         return templates.TemplateResponse(
