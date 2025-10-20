@@ -1,16 +1,177 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
-   <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Salon Help Desk</title>
-      <link rel="stylesheet" href="/static/style.css">
-   </head>
-   <body>
-      <div class="container">
-         <h1>Welcome to Our Salon</h1>
-         <p>Ask your question below:</p>
-         <form action="/call" method="post"> <label for="caller">Your Name:</label> <input type="text" id="caller" name="caller" required> <label for="question">Your Question:</label> <textarea id="question" name="question" required></textarea> <button type="submit">Submit</button> </form>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salon Help Desk</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js"></script>
+</head>
+<body>
+  <div class="chat-container">
+    <header>
+      <h1>Salon Voice Helpdesk</h1>
+      <p>Talk directly with our support team</p>
+    </header>
+
+    <div id="chat-box">
+      {% if ticket_id %}
+      <div class="bot-message">
+        <p>{{ message }}</p>
       </div>
-   </body>
+      <div class="bot-message">
+        <p>Click below to start your live voice call.</p>
+      </div>
+      <button id="call-btn" class="join-btn" data-ticket="{{ ticket_id }}">
+        🎤 Start Voice Call
+      </button>
+      <p id="call-status" style="margin-top: 10px; text-align:center;"></p>
+      {% else %}
+      <form action="/call" method="post">
+        <label for="caller">Your Name:</label>
+        <input type="text" id="caller" name="caller" required />
+        <label for="question">Your Question:</label>
+        <textarea id="question" name="question" required></textarea>
+        <button type="submit">Submit</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    const { Room, RoomEvent } = window.LivekitClient;
+    let roomClient;
+    let localTracks = [];
+    let muted = false;
+
+    async function joinCall(ticketId, role = "caller") {
+      const statusEl = document.getElementById("call-status");
+      const btn = document.getElementById("call-btn");
+      
+      console.log("joinCall started for ticket:", ticketId);
+      
+      btn.disabled = true;
+      statusEl.innerText = "Requesting connection...";
+      statusEl.style.color = "#666";
+
+      try {
+        // Fetch join token
+        console.log("Fetching token from:", `/join_token/${ticketId}?role=${role}`);
+        const resp = await fetch(`/join_token/${ticketId}?role=${role}`);
+        console.log("Token response status:", resp.status);
+        
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          console.error("Token fetch failed:", errorText);
+          statusEl.innerText = "❌ Connection failed: " + errorText;
+          statusEl.style.color = "red";
+          btn.disabled = false;
+          return;
+        }
+        
+        const data = await resp.json();
+        console.log("Join data received:", data);
+        console.log("Room:", data.room);
+        console.log("URL:", data.url);
+        console.log("Token length:", data.token.length);
+
+        statusEl.innerText = "Creating room...";
+        
+        // Create room instance
+        roomClient = new Room();
+        
+        // Set up event handlers
+        roomClient.on(RoomEvent.Disconnected, () => {
+          console.log("Room disconnected");
+          statusEl.innerText = "Call ended.";
+          statusEl.style.color = "#666";
+          btn.disabled = false;
+          btn.innerText = "🎤 Reconnect Call";
+        });
+
+        roomClient.on(RoomEvent.Connected, () => {
+          console.log("Room connected successfully");
+          statusEl.innerText = "✅ Connected - Waiting for supervisor...";
+          statusEl.style.color = "green";
+        });
+
+        roomClient.on(RoomEvent.ParticipantConnected, (participant) => {
+          console.log("Participant joined:", participant.identity);
+          if (participant.identity.startsWith('supervisor-')) {
+            statusEl.innerText = "✅ Supervisor joined - You can speak now!";
+            statusEl.style.color = "green";
+          }
+        });
+
+        // Connect to room
+        console.log("Connecting to room...");
+        statusEl.innerText = "Connecting to room...";
+        await roomClient.connect(data.url, data.token);
+        console.log("Connected! Publishing audio...");
+
+        // Request mic permission and publish
+        statusEl.innerText = "Requesting microphone...";
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("Microphone access granted");
+
+        // Publish local audio track
+        statusEl.innerText = "Publishing audio...";
+        const audioTrack = await roomClient.createLocalAudioTrack({
+          source: stream.getAudioTracks()[0]
+        });
+        await roomClient.localParticipant.publishTrack(audioTrack);
+        localTracks.push(audioTrack);
+        console.log("Audio track published");
+
+        // Subscribe to remote audio
+        roomClient.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          console.log("Remote track subscribed:", participant.identity);
+          if (track.kind === 'audio') {
+            const el = track.attach();
+            el.autoplay = true;
+            document.body.appendChild(el);
+            statusEl.innerText = "✅ Connected - Talking to Support!";
+            statusEl.style.color = "green";
+          }
+        });
+
+        statusEl.innerText = "✅ Connected - Waiting for supervisor...";
+        statusEl.style.color = "green";
+        btn.innerText = "🔇 Mute";
+        btn.disabled = false;
+
+        btn.onclick = () => toggleMute(btn);
+
+      } catch (error) {
+        console.error("Error joining call:", error);
+        statusEl.innerText = "❌ Error: " + error.message;
+        statusEl.style.color = "red";
+        btn.disabled = false;
+      }
+    }
+
+    function toggleMute(btn) {
+      muted = !muted;
+      localTracks.forEach(track => {
+        if (track.mediaStreamTrack) {
+          track.mediaStreamTrack.enabled = !muted;
+        }
+      });
+      btn.innerText = muted ? "🔈 Unmute" : "🔇 Mute";
+      console.log("Mute toggled:", muted);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Page loaded, checking for call button");
+      const btn = document.getElementById("call-btn");
+      if (btn) {
+        console.log("Call button found, ticket ID:", btn.dataset.ticket);
+        btn.addEventListener("click", () => {
+          console.log("Call button clicked");
+          joinCall(btn.dataset.ticket);
+        });
+      }
+    });
+  </script>
+</body>
 </html>
