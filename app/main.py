@@ -5,12 +5,15 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
+from pydantic import BaseModel
 
 from .db import engine, KBEntry, HelpRequest
-from .agent import find_in_kb, create_help_request, generate_access_token
+from .agent import create_livekit_room, find_in_kb, create_help_request, generate_access_token
 from .background import start_worker
 from .supervisor import router as supervisor_router
 
+class VoiceQuestion(BaseModel):
+    question: str
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -116,4 +119,44 @@ async def join_token(ticket_id: str, role: str = "caller"):
             "room": room_name,
             "token": token,
             "identity": identity,
+        }
+
+@app.post("/ask_voice")
+async def ask_voice(data: VoiceQuestion):
+    """
+    Handle voice question - search KB or escalate
+    """
+    question = data.question
+    
+    # Search KB
+    entry = find_in_kb(question)
+    
+    if entry:
+        # Found answer
+        return {
+            "answer": entry.answer,
+            "found": True
+        }
+    else:
+        # Need human - create ticket
+        hr = create_help_request("Voice Caller", question)
+        
+        # Create room for voice escalation
+        room_name = f"support-{hr.ticket_id}"
+        created_room = await create_livekit_room(room_name)
+        
+        with Session(engine) as session:
+            db_hr = session.exec(
+                select(HelpRequest).where(HelpRequest.ticket_id == hr.ticket_id)
+            ).first()
+            if db_hr:
+                db_hr.room_url = created_room
+                session.add(db_hr)
+                session.commit()
+        
+        return {
+            "answer": None,
+            "found": False,
+            "ticket_id": hr.ticket_id,
+            "needs_supervisor": True
         }
