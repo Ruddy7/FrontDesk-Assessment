@@ -3,179 +3,348 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Salon Help Desk</title>
+  <title>Salon Voice Helpdesk</title>
   <link rel="stylesheet" href="/static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js"></script>
-</head>
-<body>
-  <div class="chat-container">
-    <header>
-      <h1>Salon Voice Helpdesk</h1>
-      <p>Talk directly with our support team</p>
-    </header>
 
-    <div id="chat-box">
-      {% if ticket_id %}
-      <div class="bot-message">
-        <p>{{ message }}</p>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      text-align: center;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 0 0 15px 15px;
+    }
+    .chat-container {
+      max-width: 500px;
+      margin: 40px auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+    }
+    .voice-mode {
+      text-align: center;
+      padding: 20px;
+    }
+    .mic-button {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      font-size: 40px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s;
+    }
+    .mic-button:hover {
+      transform: scale(1.1);
+    }
+    .mic-button.listening {
+      animation: pulse 1s infinite;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .transcript-box {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 20px 0;
+      min-height: 100px;
+      text-align: left;
+    }
+    .mode-toggle {
+      margin: 20px 0;
+      text-align: center;
+    }
+    .toggle-btn {
+      padding: 10px 20px;
+      margin: 0 5px;
+      border: 2px solid #007bff;
+      background: white;
+      color: #007bff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .toggle-btn.active {
+      background: #007bff;
+      color: white;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+    form input, form textarea {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    form button {
+      padding: 10px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #call-interface {
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🎙️ Salon Helpdesk</h1>
+    <p>Ask questions by voice or text</p>
+  </header>
+
+  <div class="chat-container">
+    <div class="mode-toggle">
+      <button id="voice-mode-btn" class="toggle-btn active" onclick="switchMode('voice')">🎤 Voice Mode</button>
+      <button id="text-mode-btn" class="toggle-btn" onclick="switchMode('text')">⌨️ Text Mode</button>
+    </div>
+
+    <!-- Voice Interface -->
+    <div id="voice-interface" class="voice-mode">
+      <h2>Speak Your Question</h2>
+      <p>Click the microphone and speak</p>
+      <button id="mic-btn" class="mic-button" onclick="toggleListening()">🎤</button>
+
+      <div class="transcript-box">
+        <strong>You said:</strong>
+        <div id="transcript">Click microphone to start...</div>
       </div>
-      <div class="bot-message">
-        <p>Click below to start your live voice call.</p>
+
+      <div id="response-box" class="transcript-box" style="display:none;">
+        <strong>Response:</strong>
+        <div id="response-text"></div>
       </div>
-      <button id="call-btn" class="join-btn" data-ticket="{{ ticket_id }}">
-        🎤 Start Voice Call
-      </button>
-      <p id="call-status" style="margin-top: 10px; text-align:center;"></p>
-      {% else %}
-      <form action="/call" method="post">
+
+      <div id="escalation-section" style="display:none;">
+        <p>No answer found. Connecting you to supervisor...</p>
+        <label for="caller-name">Your Name:</label>
+        <input type="text" id="caller-name" placeholder="Enter your name" />
+        <button onclick="connectToSupervisor()">📞 Connect via Voice</button>
+      </div>
+    </div>
+
+    <!-- Text Interface -->
+    <div id="text-interface" style="display:none;">
+      <form id="text-form" action="/call" method="post">
         <label for="caller">Your Name:</label>
         <input type="text" id="caller" name="caller" required />
         <label for="question">Your Question:</label>
         <textarea id="question" name="question" required></textarea>
         <button type="submit">Submit</button>
       </form>
-      {% endif %}
+    </div>
+
+    <!-- Call Interface -->
+    <div id="call-interface">
+      <h3>Connecting you to a supervisor via voice...</h3>
+      <button id="call-btn" class="join-btn">🎤 Start Voice Call with Supervisor</button>
+      <p id="call-status" style="margin-top: 10px; text-align:center;"></p>
     </div>
   </div>
 
   <script>
-    const { Room, RoomEvent, createLocalAudioTrack } = window.LivekitClient;
-    let roomClient;
-    let localAudioTrack;
-    let muted = false;
+    // ====== Browser Speech Recognition ======
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
-    async function joinCall(ticketId, role = "caller") {
+    let isListening = false;
+    let currentQuestion = "";
+    let currentTicketId = null;
+
+    if (recognition) {
+      recognition.continuous = false;
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        currentQuestion = transcript;
+        document.getElementById("transcript").innerHTML = transcript;
+        askQuestion(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        document.getElementById("transcript").innerHTML = `Error: ${event.error}`;
+        stopListening();
+      };
+
+      recognition.onend = () => {
+        stopListening();
+      };
+    }
+
+    function switchMode(mode) {
+      if (mode === "voice") {
+        document.getElementById("voice-interface").style.display = "block";
+        document.getElementById("text-interface").style.display = "none";
+        document.getElementById("voice-mode-btn").classList.add("active");
+        document.getElementById("text-mode-btn").classList.remove("active");
+      } else {
+        document.getElementById("voice-interface").style.display = "none";
+        document.getElementById("text-interface").style.display = "block";
+        document.getElementById("voice-mode-btn").classList.remove("active");
+        document.getElementById("text-mode-btn").classList.add("active");
+      }
+    }
+
+    function toggleListening() {
+      if (!recognition) {
+        alert("Speech recognition not supported in this browser.");
+        return;
+      }
+
+      if (isListening) {
+        recognition.stop();
+      } else {
+        recognition.start();
+        isListening = true;
+        document.getElementById("mic-btn").classList.add("listening");
+        document.getElementById("transcript").innerHTML = "Listening...";
+      }
+    }
+
+    function stopListening() {
+      isListening = false;
+      document.getElementById("mic-btn").classList.remove("listening");
+    }
+
+    async function askQuestion(question) {
+      try {
+        const resp = await fetch("/ask_voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+
+        const data = await resp.json();
+
+        if (data.answer) {
+          showResponse(data.answer);
+          speakText(data.answer);
+        } else if (data.ticket_id) {
+          currentTicketId = data.ticket_id;
+          document.getElementById("escalation-section").style.display = "block";
+          speakText("I don't have that information. Let me connect you with a supervisor who can help.");
+        }
+      } catch (error) {
+        showResponse("Sorry, there was an error. Please try again.");
+      }
+    }
+
+    function showResponse(text) {
+      document.getElementById("response-box").style.display = "block";
+      document.getElementById("response-text").innerText = text;
+    }
+
+    function speakText(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      const voices = speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Samantha"));
+      if (preferredVoice) utterance.voice = preferredVoice;
+      speechSynthesis.speak(utterance);
+    }
+
+    async function connectToSupervisor() {
+      const name = document.getElementById("caller-name").value.trim();
+      if (!name) {
+        alert("Please enter your name");
+        return;
+      }
+
+      if (!currentTicketId) {
+        alert("No ticket created yet");
+        return;
+      }
+
+      document.getElementById("voice-interface").style.display = "none";
+      document.getElementById("call-interface").style.display = "block";
+
+      setupVoiceCall(currentTicketId);
+    }
+
+    // ====== LiveKit Voice Call ======
+    const { Room, RoomEvent, createLocalAudioTrack } = window.LivekitClient;
+    let roomClient, localAudioTrack, muted = false;
+
+    async function setupVoiceCall(ticketId) {
       const statusEl = document.getElementById("call-status");
       const btn = document.getElementById("call-btn");
-      
-      console.log("joinCall started for ticket:", ticketId);
-      
-      btn.disabled = true;
-      statusEl.innerText = "Requesting connection...";
-      statusEl.style.color = "#666";
 
-      try {
-        // Fetch join token
-        console.log("Fetching token from:", `/join_token/${ticketId}?role=${role}`);
-        const resp = await fetch(`/join_token/${ticketId}?role=${role}`);
-        console.log("Token response status:", resp.status);
-        
-        if (!resp.ok) {
-          const errorText = await resp.text();
-          console.error("Token fetch failed:", errorText);
-          statusEl.innerText = "❌ Connection failed: " + errorText;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        statusEl.innerText = "Connecting...";
+
+        try {
+          const resp = await fetch(`/join_token/${ticketId}?role=caller`);
+          const data = await resp.json();
+
+          roomClient = new Room();
+
+          roomClient.on(RoomEvent.Connected, () => {
+            statusEl.innerText = "✅ Connected - Waiting for supervisor...";
+            statusEl.style.color = "green";
+          });
+
+          roomClient.on(RoomEvent.ParticipantConnected, (participant) => {
+            if (participant.identity.startsWith("supervisor-")) {
+              statusEl.innerText = "✅ Supervisor joined - You can speak now!";
+            }
+          });
+
+          roomClient.on(RoomEvent.TrackSubscribed, (track) => {
+            if (track.kind === "audio") {
+              const el = track.attach();
+              el.autoplay = true;
+              document.body.appendChild(el);
+            }
+          });
+
+          await roomClient.connect(data.url, data.token);
+          localAudioTrack = await createLocalAudioTrack();
+          await roomClient.localParticipant.publishTrack(localAudioTrack);
+
+          statusEl.innerText = "🎤 Microphone active";
+          btn.innerText = "🔇 Mute";
+          btn.disabled = false;
+          btn.onclick = () => {
+            muted = !muted;
+            localAudioTrack.muted = muted;
+            btn.innerText = muted ? "🔈 Unmute" : "🔇 Mute";
+          };
+        } catch (error) {
+          statusEl.innerText = "❌ Error: " + error.message;
           statusEl.style.color = "red";
           btn.disabled = false;
-          return;
         }
-        
-        const data = await resp.json();
-        console.log("Join data received:", data);
-        console.log("Room:", data.room);
-        console.log("URL:", data.url);
-        console.log("Token length:", data.token.length);
-
-        statusEl.innerText = "Creating room...";
-        
-        // Create room instance
-        roomClient = new Room();
-        
-        // Set up event handlers
-        roomClient.on(RoomEvent.Disconnected, () => {
-          console.log("Room disconnected");
-          statusEl.innerText = "Call ended.";
-          statusEl.style.color = "#666";
-          btn.disabled = false;
-          btn.innerText = "🎤 Reconnect Call";
-        });
-
-        roomClient.on(RoomEvent.Connected, () => {
-          console.log("Room connected successfully");
-          statusEl.innerText = "✅ Connected - Waiting for supervisor...";
-          statusEl.style.color = "green";
-        });
-
-        roomClient.on(RoomEvent.ParticipantConnected, (participant) => {
-          console.log("Participant joined:", participant.identity);
-          if (participant.identity.startsWith('supervisor-')) {
-            statusEl.innerText = "✅ Supervisor joined - You can speak now!";
-            statusEl.style.color = "green";
-          }
-        });
-
-        // Subscribe to remote audio
-        roomClient.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          console.log("Remote track subscribed:", participant.identity);
-          if (track.kind === 'audio') {
-            const el = track.attach();
-            el.autoplay = true;
-            document.body.appendChild(el);
-            statusEl.innerText = "✅ Connected - Talking to Support!";
-            statusEl.style.color = "green";
-          }
-        });
-
-        // Connect to room
-        console.log("Connecting to room...");
-        statusEl.innerText = "Connecting to room...";
-        await roomClient.connect(data.url, data.token);
-        console.log("Connected! Publishing audio...");
-
-        // Request mic permission and create audio track
-        statusEl.innerText = "Requesting microphone...";
-        console.log("Creating local audio track...");
-        
-        // Create local audio track using LiveKit's function
-        localAudioTrack = await createLocalAudioTrack();
-        console.log("Local audio track created:", localAudioTrack);
-
-        // Publish the track
-        statusEl.innerText = "Publishing audio...";
-        await roomClient.localParticipant.publishTrack(localAudioTrack);
-        console.log("Audio track published");
-
-        // Debug: Monitor audio levels
-        setInterval(() => {
-          if (localAudioTrack) {
-            console.log("🎤 Mic active:", !localAudioTrack.isMuted);
-          }
-        }, 3000);
-
-        statusEl.innerText = "✅ Connected - Waiting for supervisor...";
-        statusEl.style.color = "green";
-        btn.innerText = "🔇 Mute";
-        btn.disabled = false;
-
-        btn.onclick = () => toggleMute(btn);
-
-      } catch (error) {
-        console.error("Error joining call:", error);
-        statusEl.innerText = "❌ Error: " + error.message;
-        statusEl.style.color = "red";
-        btn.disabled = false;
-      }
+      };
     }
 
-    function toggleMute(btn) {
-      if (!localAudioTrack) return;
-      
-      muted = !muted;
-      localAudioTrack.muted = muted;
-      btn.innerText = muted ? "🔈 Unmute" : "🔇 Mute";
-      console.log("Mute toggled:", muted);
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      console.log("Page loaded, checking for call button");
-      const btn = document.getElementById("call-btn");
-      if (btn) {
-        console.log("Call button found, ticket ID:", btn.dataset.ticket);
-        btn.addEventListener("click", () => {
-          console.log("Call button clicked");
-          joinCall(btn.dataset.ticket);
-        });
-      }
-    });
+    speechSynthesis.onvoiceschanged = () => {
+      console.log("Voices loaded:", speechSynthesis.getVoices().length);
+    };
   </script>
 </body>
 </html>
