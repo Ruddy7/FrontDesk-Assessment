@@ -3,52 +3,361 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Supervisor Panel</title>
+  <title>Admin Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js"></script>
+  <style>
+    body {
+      font-family: "Inter", Arial, sans-serif;
+      background-color: #eef2f3;
+      margin: 0;
+      padding: 20px 0;
+      min-height: 100vh;
+    }
+    
+    .admin-container {
+      width: 90%;
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+      padding-bottom: 30px;
+    }
+    
+    header {
+      background-color: #007bff;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      border-radius: 16px 16px 0 0;
+    }
+    
+    header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+    
+    header p {
+      margin: 5px 0 0;
+      font-size: 0.95rem;
+      opacity: 0.9;
+    }
+    
+    section {
+      padding: 20px 30px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    section:last-child {
+      border-bottom: none;
+    }
+    
+    section h2 {
+      color: #007bff;
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 1.4rem;
+    }
+    
+    .voice-controls {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f0f8ff;
+      border-radius: 5px;
+    }
+    .voice-btn {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 5px;
+      font-size: 14px;
+    }
+    .voice-btn:hover {
+      background: #218838;
+    }
+    .voice-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .voice-status {
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    .pending-item {
+      background: #fff3cd;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border-left: 4px solid #ffc107;
+    }
+    .resolved-item {
+      background: #d4edda;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border-left: 4px solid #28a745;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+    
+    form input[type="text"],
+    form textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-top: 5px;
+      box-sizing: border-box;
+    }
+    
+    form button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    
+    form button:hover {
+      background-color: #0056b3;
+    }
+    
+    .pending-item form button,
+    .resolved-item form button {
+      background-color: #28a745;
+    }
+    
+    .pending-item form button:hover {
+      background-color: #218838;
+    }
+    
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 500;
+    }
+  </style>
 </head>
 <body>
   <div class="admin-container">
-    <h1>Supervisor Dashboard</h1>
+    <header>
+      <h1>🎧 Supervisor Dashboard</h1>
+      <p>Manage help requests and knowledge base</p>
+    </header>
 
     <section>
-      <h2>Pending Requests</h2>
+      <h2>⏳ Pending Requests</h2>
       {% if pending_requests %}
-        {% for req in pending_requests %}
-        <div class="request-card">
-          <p><strong>Caller:</strong> {{ req.caller }}</p>
-          <p><strong>Question:</strong> {{ req.question }}</p>
+        {% for hr in pending_requests %}
+        <div class="pending-item" id="ticket-{{ hr.ticket_id }}">
+          <strong>Ticket:</strong> {{ hr.ticket_id }}<br/>
+          <strong>Caller:</strong> {{ hr.caller }}<br/>
+          <strong>Question:</strong> {{ hr.question }}<br/>
+          <strong>Created:</strong> {{ hr.created_at.strftime('%Y-%m-%d %H:%M:%S') }}<br/>
+          
+          <!-- Voice Call Controls -->
+          <div class="voice-controls">
+            <button class="voice-btn" onclick="joinVoiceCall('{{ hr.ticket_id }}')">
+              🎤 Join Voice Call
+            </button>
+            <button class="voice-btn" style="background: #dc3545;" onclick="toggleMute('{{ hr.ticket_id }}')" disabled id="mute-btn-{{ hr.ticket_id }}">
+              🔇 Mute
+            </button>
+            <div class="voice-status" id="status-{{ hr.ticket_id }}"></div>
+          </div>
 
-          {% if req.room_url %}
-            <a href="{{ req.room_url }}" target="_blank" class="join-btn">🎥 Join Live Support</a>
-          {% else %}
-            <p><em>Creating LiveKit room...</em></p>
-          {% endif %}
-
-          <form action="/admin/resolve" method="post">
-            <input type="hidden" name="ticket_id" value="{{ req.ticket_id }}" />
-            <textarea name="answer" placeholder="Type answer..." required></textarea>
-            <button type="submit">Resolve</button>
+          <!-- Resolve Form -->
+          <form action="/admin/resolve" method="post" style="margin-top: 15px;">
+            <input type="hidden" name="ticket_id" value="{{ hr.ticket_id }}" />
+            <label>Resolution Answer:</label>
+            <textarea name="answer" rows="3" required></textarea>
+            <button type="submit">✅ Resolve & Add to KB</button>
           </form>
         </div>
         {% endfor %}
       {% else %}
-        <p>No pending requests 🎉</p>
+        <p style="color: #666; font-style: italic;">No pending requests.</p>
       {% endif %}
     </section>
 
     <section>
-      <h2>Resolved</h2>
+      <h2>✅ Resolved Requests</h2>
       {% if resolved_requests %}
-        {% for req in resolved_requests %}
-        <div class="request-card resolved">
-          <p><strong>{{ req.caller }}</strong> — {{ req.question }}</p>
-          <p><em>{{ req.supervisor_answer }}</em></p>
+        {% for hr in resolved_requests %}
+        <div class="resolved-item">
+          <strong>Ticket:</strong> {{ hr.ticket_id }}<br/>
+          <strong>Caller:</strong> {{ hr.caller }}<br/>
+          <strong>Question:</strong> {{ hr.question }}<br/>
+          <strong>Answer:</strong> {{ hr.supervisor_answer }}<br/>
+          <strong>Resolved:</strong> {{ hr.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if hr.resolved_at else 'N/A' }}
         </div>
         {% endfor %}
       {% else %}
-        <p>No resolved tickets yet.</p>
+        <p style="color: #666; font-style: italic;">No resolved requests yet.</p>
       {% endif %}
     </section>
+
+    <section>
+      <h2>📚 Knowledge Base</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Answer</th>
+            <th style="width: 120px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in kb %}
+          <tr>
+            <td>{{ entry.question }}</td>
+            <td>{{ entry.answer }}</td>
+            <td>
+              <form action="/admin/kb/delete" method="post" style="display: inline; margin: 0;">
+                <input type="hidden" name="kb_id" value="{{ entry.id }}" />
+                <button type="submit" onclick="return confirm('Delete this entry?')" style="background: #dc3545; padding: 6px 12px; margin: 0;">🗑️ Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3 style="margin-top: 25px; margin-bottom: 10px; font-size: 1.2rem;">Add New KB Entry</h3>
+      <form action="/admin/kb/add" method="post">
+        <label>Question:</label>
+        <input type="text" name="question" required />
+        <label>Answer:</label>
+        <textarea name="answer" rows="2" required></textarea>
+        <button type="submit">➕ Add to KB</button>
+      </form>
+    </section>
   </div>
+
+  <script>
+    const { Room, RoomEvent, createLocalAudioTrack } = window.LivekitClient;
+    const activeRooms = {};
+    const localTracks = {};
+
+    async function joinVoiceCall(ticketId) {
+      const statusEl = document.getElementById(`status-${ticketId}`);
+      const muteBtn = document.getElementById(`mute-btn-${ticketId}`);
+      
+      console.log(`[SUPERVISOR] Joining call for ticket: ${ticketId}`);
+      statusEl.innerText = "Connecting...";
+      statusEl.style.color = "#666";
+
+      try {
+        // Get join token
+        const resp = await fetch(`/admin/join_call/${ticketId}`);
+        if (!resp.ok) {
+          const error = await resp.json();
+          throw new Error(error.error || "Failed to get join token");
+        }
+
+        const data = await resp.json();
+        console.log("[SUPERVISOR] Join data:", data);
+
+        // Create room
+        const room = new Room();
+        activeRooms[ticketId] = room;
+
+        // Event handlers
+        room.on(RoomEvent.Connected, () => {
+          console.log("[SUPERVISOR] Connected to room");
+          statusEl.innerText = `✅ Connected to ${data.caller}'s call`;
+          statusEl.style.color = "green";
+          muteBtn.disabled = false;
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          console.log("[SUPERVISOR] Disconnected");
+          statusEl.innerText = "Call ended";
+          statusEl.style.color = "#666";
+          muteBtn.disabled = true;
+          delete activeRooms[ticketId];
+          delete localTracks[ticketId];
+        });
+
+        room.on(RoomEvent.ParticipantConnected, (participant) => {
+          console.log("[SUPERVISOR] Participant joined:", participant.identity);
+          if (participant.identity.startsWith('caller-')) {
+            statusEl.innerText = `✅ Talking with ${data.caller}`;
+          }
+        });
+
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          console.log("[SUPERVISOR] Track subscribed:", participant.identity);
+          if (track.kind === 'audio') {
+            const audioEl = track.attach();
+            audioEl.autoplay = true;
+            audioEl.volume = 1.0; // Max volume
+            document.body.appendChild(audioEl);
+            console.log("[SUPERVISOR] 🔊 Remote audio attached and playing");
+          }
+        });
+
+        // Connect to room
+        await room.connect(data.url, data.token);
+        console.log("[SUPERVISOR] Connected to room");
+
+        // Create and publish local audio track
+        statusEl.innerText = "Publishing audio...";
+        const audioTrack = await createLocalAudioTrack();
+        await room.localParticipant.publishTrack(audioTrack);
+        localTracks[ticketId] = audioTrack;
+        
+        console.log("[SUPERVISOR] Audio published");
+        statusEl.innerText = `✅ Connected to ${data.caller}'s call`;
+
+      } catch (error) {
+        console.error("[SUPERVISOR] Error:", error);
+        statusEl.innerText = `❌ Error: ${error.message}`;
+        statusEl.style.color = "red";
+      }
+    }
+
+    function toggleMute(ticketId) {
+      const audioTrack = localTracks[ticketId];
+      const muteBtn = document.getElementById(`mute-btn-${ticketId}`);
+      
+      if (!audioTrack) return;
+
+      const isMuted = audioTrack.isMuted;
+      
+      if (isMuted) {
+        audioTrack.unmute();
+        muteBtn.innerText = "🔇 Mute";
+      } else {
+        audioTrack.mute();
+        muteBtn.innerText = "🔈 Unmute";
+      }
+      
+      console.log(`[SUPERVISOR] ${isMuted ? 'Unmuted' : 'Muted'} for ticket ${ticketId}`);
+    }
+  </script>
 </body>
 </html>
