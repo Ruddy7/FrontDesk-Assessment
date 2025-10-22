@@ -1,11 +1,13 @@
 from datetime import datetime
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
+import os
 
 from .db import engine, HelpRequest, KBEntry
 from .notifications import notify_caller_followup
+from .agent import generate_access_token
 
 
 router = APIRouter()
@@ -33,6 +35,51 @@ async def admin_page(request: Request):
             "kb": kb,
         },
     )
+
+
+# --- Supervisor join voice call ---
+@router.get("/admin/join_call/{ticket_id}")
+async def supervisor_join_call(ticket_id: str):
+    """
+    Generate a LiveKit token for supervisor to join the voice call.
+    Returns JSON with connection details.
+    """
+    with Session(engine) as session:
+        hr = session.exec(
+            select(HelpRequest).where(HelpRequest.ticket_id == ticket_id)
+        ).first()
+
+        if not hr:
+            return JSONResponse(
+                {"error": "Ticket not found"},
+                status_code=404
+            )
+
+        if not hr.room_url:
+            return JSONResponse(
+                {"error": "Room not created yet. Ask caller to connect first."},
+                status_code=400
+            )
+
+        # Generate supervisor token
+        import uuid
+        supervisor_identity = f"supervisor-{uuid.uuid4().hex[:8]}"
+        token = generate_access_token(
+            identity=supervisor_identity,
+            room_name=hr.room_url,
+            role="supervisor"
+        )
+
+        print(f"[SUPERVISOR] Joining call for ticket {ticket_id}, room: {hr.room_url}")
+
+        return JSONResponse({
+            "url": os.getenv("LIVEKIT_URL"),
+            "room": hr.room_url,
+            "token": token,
+            "identity": supervisor_identity,
+            "caller": hr.caller,
+            "question": hr.question
+        })
 
 
 # --- Resolve help request ---
@@ -66,5 +113,36 @@ async def resolve_request(ticket_id: str = Form(...), answer: str = Form(...)):
 
         # Notify the caller about resolution
         notify_caller_followup(hr)
+
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+# --- Add KB entry manually ---
+@router.post("/admin/kb/add")
+async def add_kb_entry(question: str = Form(...), answer: str = Form(...)):
+    with Session(engine) as session:
+        # Check if exists
+        existing = session.exec(
+            select(KBEntry).where(KBEntry.question == question)
+        ).first()
+
+        if existing:
+            existing.answer = answer
+        else:
+            session.add(KBEntry(question=question, answer=answer))
+        
+        session.commit()
+
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+# --- Delete KB entry ---
+@router.post("/admin/kb/delete")
+async def delete_kb_entry(kb_id: int = Form(...)):
+    with Session(engine) as session:
+        kb = session.get(KBEntry, kb_id)
+        if kb:
+            session.delete(kb)
+            session.commit()
 
     return RedirectResponse(url="/admin", status_code=303)
