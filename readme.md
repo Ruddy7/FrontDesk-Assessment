@@ -1,3 +1,6 @@
+If you just want to see how the code and app works, checkout the videos attached in the repo.
+<br>
+Else to run it in your local directory, <br>
 Clone this repository and make a .env file which should look like this <br>
 <br>
 LIVEKIT_URL= your project url <br>
